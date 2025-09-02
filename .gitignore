@@ -1,0 +1,15 @@
+# Python
+__pycache__/
+
+# Virtual Environments
+.venv
+
+# Environment Files
+.env
+
+# Setups
+setups/
+
+# Airflow
+airflow.cfg
+logs/
