@@ -1,3 +1,5 @@
+import json
+from pathlib import Path
 from airflow.models import BaseOperator
 from airflow.providers.http.hooks.http import HttpHook
 
@@ -7,18 +9,29 @@ class ApiRequestOperators(BaseOperator):
         self,
         endpoint: str,
         http_conn_id: str,
+        output_dir: str,
+        output_filename: str,
         method: str = "GET",
         headers: dict | None = None,
         data: dict | None = None,
         *args,
         **kwargs,
     ):
-        super.__init__(*args, **kwargs)
-        self.endpoint = self.endpoint
+        super().__init__(*args, **kwargs)
+        self.endpoint = endpoint
         self.http_conn_id = http_conn_id
+        self.output_dir = output_dir
+        self.output_filename = output_filename
         self.method = method.upper()
         self.headers = headers or {}
         self.data = data
+
+
+    def save_to_local(self, response):
+        file_path = self.output_dir / self.output_filename
+        file_path.write_text(json.dumps(response))
+        self.log.info(f"Saved API response to {self.output_filename}")
+
 
     def execute(self, context):
         # Initialize hook
@@ -35,7 +48,9 @@ class ApiRequestOperators(BaseOperator):
         try:
             result = response.json()
             self.log.info("Response JSON: %s", result)
-            return result
         except Exception:
             self.log.warning("Response is not JSON, returning text.")
-            return response.text
+            result = response.text
+
+        # Save to local file
+        self.save_to_local(result)
