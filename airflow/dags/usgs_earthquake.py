@@ -105,12 +105,13 @@ def usgs_earthquake_dag():
     #     output_filename=filename,
     # )
 
-    # Step 2: Print API response
+    # Step 2: Preprocess the API response and put into temporary file
     # process_earthquake_data_task = process_earthquake_data(fetch_earthquake_data.output)
     process_earthquake_data_task = process_earthquake_data(
         "/opt/airflow/data/earthquake/earthquake_data_20250909095923.json"
     )
 
+    # Step 3: Load the data into Postgres database
     load_data_into_postgres = PostgresLoadOperator(
         task_id="load_data_into_postgres",
         conn_id="postgres_conn_id",
@@ -119,6 +120,7 @@ def usgs_earthquake_dag():
         trunc_table=True,
     )
 
+    # Step 4: Remove the temporary file
     cleanup_after_load_task = cleanup_after_load(process_earthquake_data_task)
 
     # fetch_earthquake_data >>
