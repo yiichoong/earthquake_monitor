@@ -1,5 +1,5 @@
 import json
-from pathlib import Path
+
 from airflow.models import BaseOperator
 from airflow.providers.http.hooks.http import HttpHook
 
@@ -26,12 +26,15 @@ class ApiRequestOperators(BaseOperator):
         self.headers = headers or {}
         self.data = data
 
-
     def save_to_local(self, response):
         file_path = self.output_dir / self.output_filename
         file_path.write_text(json.dumps(response))
+        self.log.info(
+            f"\nOutput Dir {self.output_dir}\nOutput File Name: {self.output_filename}\nFile Path: {file_path}"
+        )
         self.log.info(f"Saved API response to {self.output_filename}")
 
+        return str(file_path)
 
     def execute(self, context):
         # Initialize hook
@@ -53,4 +56,6 @@ class ApiRequestOperators(BaseOperator):
             result = response.text
 
         # Save to local file
-        self.save_to_local(result)
+        file_path = self.save_to_local(result)
+
+        return file_path
