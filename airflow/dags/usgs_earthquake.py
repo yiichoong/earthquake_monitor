@@ -5,6 +5,7 @@ from datetime import datetime, timedelta
 from pathlib import Path
 
 import pandas as pd
+from operators.api_request_operator import ApiRequestOperators
 from operators.postgres_db_operator import PostgresLoadOperator
 
 from airflow.decorators import dag, task
@@ -31,6 +32,8 @@ def usgs_earthquake_dag():
     timestamp = datetime.now().strftime("%Y%m%d%H%M%S")
     filename = f"earthquake_data_{timestamp}.json"
 
+    temp_file_path = output_dir / "temp_usgs_earthquake_event.csv"
+
     @task
     def process_earthquake_data(file_path: str):
         try:
@@ -39,6 +42,7 @@ def usgs_earthquake_dag():
 
             records = []
 
+            # Extract the desired columns from the nested JSON
             for f in data["features"]:
                 props = f["properties"]
                 geom = f["geometry"]["coordinates"]
@@ -85,46 +89,45 @@ def usgs_earthquake_dag():
             logging.error(f"Error loading from {file_path}: {e}")
 
         try:
-            temp_file_path = output_dir / "temp_usgs_earthquake_event.csv"
             df.to_csv(temp_file_path, index=False)
+            logging.info(f"Successfully saved data into {temp_file_path}")
         except Exception as e:
             logging.error(f"Error creating temporary csv: {e}")
-
-        return str(temp_file_path)
 
     @task
     def cleanup_after_load(file_path: str):
         os.remove(file_path)
 
     # Step 1: Extract data from API
-    # fetch_earthquake_data = ApiRequestOperators(
-    #     task_id="fetch_earthquake_data",
-    #     endpoint="/summary/all_hour.geojson",
-    #     http_conn_id="usgs_api",
-    #     output_dir=output_dir,
-    #     output_filename=filename,
-    # )
-
-    # Step 2: Preprocess the API response and put into temporary file
-    # process_earthquake_data_task = process_earthquake_data(fetch_earthquake_data.output)
-    process_earthquake_data_task = process_earthquake_data(
-        "/opt/airflow/data/earthquake/earthquake_data_20250909095923.json"
+    fetch_earthquake_data = ApiRequestOperators(
+        task_id="fetch_earthquake_data",
+        endpoint="/summary/all_hour.geojson",
+        http_conn_id="usgs_api",
+        output_dir=output_dir,
+        output_filename=filename,
     )
 
-    # Step 3: Load the data into Postgres database
+    # Step 2: Preprocess the API response and store into a temporary file
+    process_earthquake_data_task = process_earthquake_data(fetch_earthquake_data.output)
+
+    # Step 3: Load the data from the temporary file into staging table in the Postgres
     load_data_into_postgres = PostgresLoadOperator(
         task_id="load_data_into_postgres",
         conn_id="postgres_conn_id",
-        file_path=process_earthquake_data_task,
-        table_name="usgs.stg_earthquake_event",
+        file_path=str(temp_file_path),
+        schema="usgs",
+        table_name="stg_earthquake_event",
         trunc_table=True,
     )
 
     # Step 4: Remove the temporary file
     cleanup_after_load_task = cleanup_after_load(process_earthquake_data_task)
-
-    # fetch_earthquake_data >>
-    process_earthquake_data_task >> load_data_into_postgres >> cleanup_after_load_task
+    (
+        fetch_earthquake_data
+        >> process_earthquake_data_task
+        >> load_data_into_postgres
+        >> cleanup_after_load_task
+    )
 
 
 usgs_earthquake_dag()

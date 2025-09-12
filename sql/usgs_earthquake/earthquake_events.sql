@@ -25,6 +25,7 @@ CREATE TABLE IF NOT EXISTS usgs.stg_earthquake_event (
     , gap VARCHAR
     , magtype VARCHAR
     , type VARCHAR
+    , title VARCHAR
     , longitude VARCHAR
     , latitude VARCHAR
     , depth VARCHAR
@@ -59,10 +60,31 @@ CREATE TABLE IF NOT EXISTS usgs.fact_earthquake_event (
     , gap DECIMAL(5,2)
     , magtype VARCHAR(10)
     , type VARCHAR(50)
+    , title VARCHAR(100)
     , longitude DECIMAL(9,6)
     , latitude DECIMAL(9,6)
     , depth DECIMAL(6,2)
 );
+
+
+
+
+SELECT * FROM usgs.stg_earthquake_event;
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
 
 
 
